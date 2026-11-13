@@ -1,0 +1,13 @@
+{
+  "name": "moneta-expense-tracker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev .",
+    "d1:apply:local": "wrangler d1 migrations apply moneta --local",
+    "d1:apply:remote": "wrangler d1 migrations apply moneta --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.161.0"
+  }
+}

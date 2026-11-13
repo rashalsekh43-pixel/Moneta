@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "moneta-expense-tracker",
+  "compatibility_date": "2026-11-13",
+  "pages_build_output_dir": ".",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "moneta",
+      "database_id": "ff4e255b-4aac-48e1-bd12-dff143e3e4d9",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
