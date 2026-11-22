@@ -23,6 +23,9 @@
   let activeType = "expense";
   let pendingConfirm = null;
   let settingsWriteQueue = Promise.resolve();
+  let aiConversationId = null;
+  let aiConversationMessages = [];
+  let aiIsLoading = false;
   const charts = {};
 
   function validNonNegative(value) {
@@ -43,6 +46,46 @@
       (item.type === "income" || item.type === "expense") &&
       typeof item.category === "string" && categories.includes(item.category) &&
       validDate;
+  }
+
+  function normalizeTransactionForMigration(item) {
+    const transaction = item && typeof item === "object" ? { ...item } : null;
+    if (!transaction) return null;
+    const title = typeof transaction.title === "string" ? transaction.title.trim() : "";
+    const amount = Number(transaction.amount);
+    const category = typeof transaction.category === "string" ? transaction.category : "";
+    const date = typeof transaction.date === "string" ? transaction.date : "";
+    const notes = typeof transaction.notes === "string" ? transaction.notes.trim() : "";
+    const type = transaction.type === "income" || transaction.type === "expense" ? transaction.type : "expense";
+    if (!title || !Number.isFinite(amount) || amount <= 0 || !category || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+    return {
+      ...transaction,
+      title,
+      amount: Number(amount.toFixed(2)),
+      category,
+      date,
+      notes,
+      type
+    };
+  }
+
+  function dedupeTransactions(items) {
+    const seen = new Set();
+    return (Array.isArray(items) ? items : []).filter((item) => {
+      const normalized = normalizeTransactionForMigration(item);
+      if (!normalized) return false;
+      const identity = [
+        normalized.type,
+        normalized.title.toLowerCase(),
+        Number(normalized.amount).toFixed(2),
+        normalized.category,
+        normalized.date,
+        normalized.notes.toLowerCase()
+      ].join("::");
+      if (seen.has(identity)) return false;
+      seen.add(identity);
+      return true;
+    });
   }
 
   function budgetsFor(month) {
@@ -85,6 +128,8 @@
   function handleSessionExpired() {
     currentUser = null;
     isGuest = false;
+    aiConversationId = null;
+    aiConversationMessages = [];
     document.body.classList.remove("guest-mode");
     state = { transactions: [], budgetsByMonth: {}, currency: "INR", theme: "light" };
     $("#app-shell").hidden = true;
@@ -95,6 +140,7 @@
     $("#auth-heading").textContent = "Sign in again";
     $("#auth-subtitle").textContent = "Your session has expired. Sign in to continue.";
     setAuthView("login");
+    renderAiConversation();
   }
 
   function setAuthView(view) {
@@ -137,6 +183,7 @@
     setTheme(state.theme, false);
     updateCurrencyControls();
     renderAll();
+    await Promise.all([loadAiConversationHistory(), updateAiSummary()]);
     refreshIcons();
   }
 
@@ -147,6 +194,8 @@
     state = { transactions: [], budgetsByMonth: {}, currency: "INR", theme: "light" };
     dashboardMonth = currentMonth;
     reportMonth = currentMonth;
+    aiConversationId = null;
+    aiConversationMessages = [];
     $("#sidebar-user-name").textContent = "Guest";
     $("#sidebar-user-email").textContent = "Temporary session";
     $("#logout-button").innerHTML = `${icon("log-out")}<span>Exit guest</span>`;
@@ -157,6 +206,8 @@
     setTheme("light", false);
     updateCurrencyControls();
     renderAll();
+    updateAiSummary();
+    renderAiConversation();
     refreshIcons();
   }
 
@@ -310,13 +361,107 @@
     const pageName = name === "settings" ? "settings" : name;
     $$(".page-section").forEach((section) => section.classList.toggle("active", section.id === `page-${pageName}`));
     $$(".nav-link").forEach((link) => link.classList.toggle("active", link.dataset.nav === pageName));
-    const crumbs = { dashboard: "Overview", transactions: "Transactions", budgets: "Budgets", reports: "Reports", settings: "Settings" };
+    const crumbs = { dashboard: "Overview", transactions: "Transactions", budgets: "Budgets", reports: "Reports", ai: "AI Assistant", settings: "Settings" };
     $("#page-crumb").textContent = crumbs[pageName] || "Overview";
     $("#sidebar").classList.remove("open");
     $("#mobile-backdrop").classList.remove("open");
     window.scrollTo({ top: 0, behavior: "smooth" });
     if (pageName === "reports") updateReports();
+    if (pageName === "ai") updateAiSummary();
     refreshIcons();
+  }
+
+  function renderAiConversation() {
+    const container = $("#ai-chat");
+    if (!container) return;
+    const messages = aiConversationMessages.length ? aiConversationMessages : [{ id: "welcome", role: "assistant", content: "Hi! I can help review your spending, budgets, and savings." }];
+    container.innerHTML = messages.map((message) => {
+      const role = message.role === "user" ? "user" : "assistant";
+      return `<div class="ai-message ai-message-${role}"><strong>${role === "user" ? "You" : "mtrx AI"}</strong><span>${escapeHtml(message.content || "")}</span></div>`;
+    }).join("");
+    if (aiIsLoading) {
+      container.insertAdjacentHTML("beforeend", '<div class="ai-message ai-message-assistant ai-message-pending"><strong>mtrx AI</strong><span>Thinking…</span></div>');
+    }
+    container.scrollTop = container.scrollHeight;
+    refreshIcons();
+  }
+
+  async function updateAiSummary() {
+    if (isGuest || !currentUser) {
+      $("#ai-income").textContent = "₹0";
+      $("#ai-expenses").textContent = "₹0";
+      $("#ai-net").textContent = "₹0";
+      $("#ai-budget-remaining").textContent = "₹0";
+      $("#ai-warning-list").innerHTML = "<li>No data yet.</li>";
+      return;
+    }
+    try {
+      const data = await api("/api/ai/insights");
+      $("#ai-income").textContent = formatMoney(Number(data.incomeCents || 0) / 100);
+      $("#ai-expenses").textContent = formatMoney(Number(data.expenseCents || 0) / 100);
+      $("#ai-net").textContent = formatMoney(Number(data.netCents || 0) / 100);
+      $("#ai-budget-remaining").textContent = formatMoney(Number(data.budgetRemainingCents || 0) / 100);
+      const warnings = Array.isArray(data.warnings) && data.warnings.length ? data.warnings : [{ message: "No budget warnings right now." }];
+      $("#ai-warning-list").innerHTML = warnings.map((warning) => `<li>${escapeHtml(warning.message || "No budget warnings right now.")}</li>`).join("");
+    } catch (error) {
+      $("#ai-warning-list").innerHTML = "<li>Insights unavailable.</li>";
+    }
+  }
+
+  async function loadAiConversationHistory() {
+    if (isGuest || !currentUser) {
+      aiConversationId = null;
+      aiConversationMessages = [];
+      renderAiConversation();
+      return;
+    }
+    try {
+      const result = await api("/api/ai");
+      const conversation = Array.isArray(result.conversations) && result.conversations.length ? result.conversations[0] : null;
+      aiConversationId = conversation ? conversation.id : null;
+      if (!conversation) {
+        aiConversationMessages = [];
+        renderAiConversation();
+        return;
+      }
+      const history = await api(`/api/ai?conversationId=${encodeURIComponent(conversation.id)}`);
+      aiConversationMessages = Array.isArray(history.messages) ? history.messages : [];
+      renderAiConversation();
+    } catch (error) {
+      aiConversationId = null;
+      aiConversationMessages = [];
+      renderAiConversation();
+    }
+  }
+
+  async function sendAiPrompt(event) {
+    if (event) event.preventDefault();
+    if (isGuest) {
+      toast("Sign in to use the AI assistant.", "error");
+      return;
+    }
+    const input = $("#ai-prompt");
+    const value = (input.value || "").trim();
+    if (!value || aiIsLoading) return;
+    aiIsLoading = true;
+    const userMessage = { id: `temp-${Date.now()}`, role: "user", content: value };
+    aiConversationMessages = [...aiConversationMessages, userMessage];
+    input.value = "";
+    renderAiConversation();
+    try {
+      const result = await api("/api/ai", { method: "POST", body: { message: value, conversationId: aiConversationId, locale: "en" } });
+      aiConversationId = result.conversationId || aiConversationId;
+      aiConversationMessages = [...aiConversationMessages.filter((message) => message.id !== userMessage.id), result.message, result.reply];
+      renderAiConversation();
+      updateAiSummary();
+    } catch (error) {
+      aiConversationMessages = aiConversationMessages.filter((message) => message.id !== userMessage.id);
+      aiConversationMessages.push({ id: `error-${Date.now()}`, role: "assistant", content: error.message || "The AI assistant is unavailable right now." });
+      renderAiConversation();
+    } finally {
+      aiIsLoading = false;
+      renderAiConversation();
+    }
   }
 
   function renderDashboard() {
@@ -755,7 +900,7 @@
         downloadFile("moneta-previous-local-data.json", saved, "application/json");
       }, { once: true });
     } catch (error) {
-      console.error("Could not inspect previous local Moneta data.");
+      console.error("Could not inspect previous local mtrx data.");
     }
   }
 
@@ -769,7 +914,7 @@
 
   function exportJson() {
     const backup = {
-      app: "Moneta",
+      app: "mtrx",
       version: 2,
       exportedAt: new Date().toISOString(),
       transactions: state.transactions,
@@ -799,7 +944,7 @@
         return;
       }
       if (!backup || !Array.isArray(backup.transactions)) {
-        toast("This file is not a valid Moneta backup.", "error");
+        toast("This file is not a valid mtrx backup.", "error");
         return;
       }
       const transactionsValid = backup.transactions.length <= 5000 && backup.transactions.every(isValidTransaction);
@@ -807,6 +952,8 @@
         toast("The backup contains invalid transactions or exceeds the 5,000 transaction import limit.", "error");
         return;
       }
+      const importTransactions = dedupeTransactions(backup.transactions);
+      const duplicateCount = backup.transactions.length - importTransactions.length;
       const budgetsByMonth = backup.budgetsByMonth && typeof backup.budgetsByMonth === "object"
         ? backup.budgetsByMonth
         : backup.budgets && typeof backup.budgets === "object"
@@ -819,13 +966,13 @@
       const guestImport = isGuest;
       requestConfirmation(
         guestImport
-          ? "Transactions will be added to this temporary guest session, and matching budgets and preferences will be replaced. Nothing will be saved after you leave."
-          : "Transactions will be added to your account. Budgets for matching months and your currency/theme settings will be updated. Existing transactions will not be removed.",
+          ? `Transactions will be added to this temporary guest session, and matching budgets and preferences will be replaced. Nothing will be saved after you leave.${duplicateCount ? ` ${duplicateCount} duplicate transaction(s) will be ignored.` : ""}`
+          : `Transactions will be added to your account. Budgets for matching months and your currency/theme settings will be updated. Existing transactions will not be removed.${duplicateCount ? ` ${duplicateCount} duplicate transaction(s) will be ignored.` : ""}`,
         "Import backup",
         async () => {
         try {
           if (guestImport) {
-            state.transactions.push(...backup.transactions.map((item) => ({
+            state.transactions.push(...importTransactions.map((item) => ({
               ...item,
               id: window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
             })));
@@ -843,7 +990,7 @@
             toast("Backup loaded for this temporary session only.");
             return;
           }
-          for (const item of backup.transactions) {
+          for (const item of importTransactions) {
             const { title, amount, type, category, date, notes = "" } = item;
             await api("/api/transactions", { method: "POST", body: { title, amount, type, category, date, notes } });
           }
@@ -1074,6 +1221,13 @@
       closeModal($("#confirm-modal"));
       if (callback) callback();
     });
+    $("#ai-form").addEventListener("submit", sendAiPrompt);
+    $("#ai-prompt").addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendAiPrompt(event);
+      }
+    });
     $("#mobile-menu").addEventListener("click", () => {
       $("#sidebar").classList.add("open");
       $("#mobile-backdrop").classList.add("open");
@@ -1176,6 +1330,7 @@
     $("#today-label").textContent = `YOUR MONEY, AT A GLANCE · ${new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(now).toUpperCase()}`;
     $("#dashboard-month").value = dashboardMonth;
     $("#report-month").value = reportMonth;
+    renderAiConversation();
     refreshIcons();
     try {
       const { user } = await api("/api/auth/me", { auth: false });
@@ -1188,6 +1343,7 @@
       $("#auth-screen").hidden = false;
       $("#app-shell").hidden = true;
       setTheme("light", false);
+      updateAiSummary();
     }
   }
 

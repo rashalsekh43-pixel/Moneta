@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#ffffff">
   <meta name="description" content="A personal finance dashboard to track spending, budgets, and savings.">
-  <title>Moneta — Personal Finance</title>
+  <title>mtrx — Personal Finance</title>
+  <link rel="icon" type="image/png" href="logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,7 +17,7 @@
 </head>
 <body>
   <section class="auth-screen" id="auth-screen" aria-labelledby="auth-heading">
-    <div class="auth-brand"><span class="brand-mark"><i data-lucide="wallet-cards"></i></span><span>moneta<span class="brand-dot">.</span></span></div>
+    <div class="auth-brand"><span class="brand-mark"><i data-lucide="wallet-cards"></i></span><span>mtrx<span class="brand-dot">.</span></span></div>
     <main class="auth-card">
       <div class="auth-heading"><span class="auth-icon"><i data-lucide="shield-check"></i></span><p class="eyebrow">YOUR MONEY, YOUR SPACE</p><h1 id="auth-heading">Welcome back</h1><p id="auth-subtitle">Sign in to your private finance dashboard.</p></div>
       <form id="login-form" class="auth-form">
@@ -25,7 +26,7 @@
         <label class="remember-option"><input id="remember-me" type="checkbox"><span>Keep me signed in for 30 days</span></label>
         <div class="auth-error" id="login-error" role="alert"></div>
         <button class="button button-primary auth-submit" type="submit"><i data-lucide="log-in"></i>Sign in</button>
-        <p class="auth-switch">New to Moneta? <button type="button" data-auth-view="register">Create an account</button></p>
+        <p class="auth-switch">New to mtrx? <button type="button" data-auth-view="register">Create an account</button></p>
       </form>
       <form id="register-form" class="auth-form" hidden>
         <label class="form-field"><span>Full name</span><input id="register-name" type="text" autocomplete="name" maxlength="80" required></label>
@@ -49,13 +50,21 @@
       </div>
     </main>
     <p class="auth-footer">Private by design. Built for mindful money moments.</p>
+    <nav class="legal-links auth-legal-links" aria-label="Legal and support links">
+      <a href="copyright.html">Copyright</a>
+      <a href="privacy-policy.html">Privacy Policy</a>
+      <a href="terms.html">Terms</a>
+      <a href="disclaimer.html">Disclaimer</a>
+      <a href="safety.html">Safety</a>
+      <a href="customer-support.html">Customer Support</a>
+    </nav>
   </section>
 
   <div class="app-shell" id="app-shell" hidden>
     <aside class="sidebar" id="sidebar">
-      <a class="brand" href="#" aria-label="Moneta home" data-nav="dashboard">
+      <a class="brand" href="#" aria-label="mtrx home" data-nav="dashboard">
         <span class="brand-mark"><i data-lucide="wallet-cards"></i></span>
-        <span>moneta<span class="brand-dot">.</span></span>
+        <span>mtrx<span class="brand-dot">.</span></span>
       </a>
       <div class="workspace-label">WORKSPACE</div>
       <nav class="primary-nav" aria-label="Main navigation">
@@ -63,6 +72,7 @@
         <button class="nav-link" data-nav="transactions"><i data-lucide="arrow-left-right"></i><span>Transactions</span><span class="nav-count" id="transaction-count">0</span></button>
         <button class="nav-link" data-nav="budgets"><i data-lucide="chart-no-axes-combined"></i><span>Budgets</span></button>
         <button class="nav-link" data-nav="reports"><i data-lucide="chart-pie"></i><span>Reports</span></button>
+        <button class="nav-link" data-nav="ai"><i data-lucide="sparkles"></i><span>AI Assistant</span></button>
         <button class="nav-link" data-nav="settings"><i data-lucide="settings-2"></i><span>Settings</span></button>
       </nav>
       <div class="sidebar-spacer"></div>
@@ -212,6 +222,35 @@
           </div>
         </section>
 
+        <section class="page-section" id="page-ai" aria-labelledby="ai-title">
+          <div class="page-heading">
+            <div><p class="eyebrow">SMART MONEY HELP</p><h1 id="ai-title">AI Assistant</h1><p class="heading-subtitle">Ask about spending, savings, budgets, and recent trends.</p></div>
+          </div>
+          <div class="ai-grid">
+            <article class="card ai-panel">
+              <div class="card-heading"><div><h2>Budget coach</h2><p>Ask a question using your verified spending data.</p></div></div>
+              <div class="ai-chat" id="ai-chat" aria-live="polite">
+                <div class="ai-message ai-message-assistant"><strong>mtrx AI</strong><span>Hi! I can help review your spending, budgets, and savings.</span></div>
+              </div>
+              <form id="ai-form" class="ai-form">
+                <label class="search-field ai-search-field"><i data-lucide="sparkles"></i><input id="ai-prompt" type="text" maxlength="2000" placeholder="Ask about your finances" autocomplete="off"></label>
+                <button class="button button-primary ai-send-button" type="submit" aria-label="Send message"><i data-lucide="send-horizontal"></i><span>Send</span></button>
+              </form>
+            </article>
+            <aside class="card ai-summary-card">
+              <div class="settings-title"><span class="settings-icon blue"><i data-lucide="wallet-cards"></i></span><div><h2>This month</h2><p>Verified numbers from your account.</p></div></div>
+              <div class="ai-substat"><span>Income</span><strong id="ai-income">₹0</strong></div>
+              <div class="ai-substat"><span>Expenses</span><strong id="ai-expenses">₹0</strong></div>
+              <div class="ai-substat"><span>Net savings</span><strong id="ai-net">₹0</strong></div>
+              <div class="ai-substat"><span>Budget remaining</span><strong id="ai-budget-remaining">₹0</strong></div>
+              <div class="ai-warning-box">
+                <h3>Budget signals</h3>
+                <ul id="ai-warning-list" class="ai-warning-list"></ul>
+              </div>
+            </aside>
+          </div>
+        </section>
+
         <section class="page-section" id="page-settings" aria-labelledby="settings-title">
           <div class="page-heading"><div><p class="eyebrow">YOUR PREFERENCES</p><h1 id="settings-title">Settings</h1><p class="heading-subtitle">Manage your preferences and personal finance data.</p></div></div>
           <div class="settings-grid">
@@ -226,14 +265,28 @@
               <div class="setting-row"><span><strong>Currency</strong><small>Choose the currency for your dashboard</small></span><select id="settings-currency" class="select-control"><option value="INR">Indian Rupee (₹)</option><option value="USD">US Dollar ($)</option><option value="EUR">Euro (€)</option><option value="GBP">British Pound (£)</option></select></div>
               <div class="setting-row"><span><strong>Appearance</strong><small>Switch between light and dark mode</small></span><button class="button button-secondary" id="settings-theme"><i data-lucide="moon"></i>Toggle theme</button></div>
               <div class="setting-row"><span><strong>Export backup</strong><small>Download your transactions, budgets, and settings as JSON</small></span><button class="button button-secondary" id="export-json"><i data-lucide="download"></i>Export JSON</button></div>
-              <div class="setting-row"><span><strong>Import backup</strong><small>Add transactions and restore budgets from a Moneta JSON backup</small></span><button class="button button-secondary" id="import-json"><i data-lucide="upload"></i>Import JSON</button><input id="import-file" type="file" accept=".json,application/json" hidden></div>
+              <div class="setting-row"><span><strong>Import backup</strong><small>Add transactions and restore budgets from a mtrx JSON backup</small></span><button class="button button-secondary" id="import-json"><i data-lucide="upload"></i>Import JSON</button><input id="import-file" type="file" accept=".json,application/json" hidden></div>
               <div class="setting-row danger-row"><span><strong>Clear all financial data</strong><small>Remove your transactions and budgets without deleting your account</small></span><button class="button button-danger" id="clear-data"><i data-lucide="trash-2"></i>Clear data</button></div>
               <div class="setting-row danger-row account-only"><span><strong>Delete account</strong><small>Permanently delete your account and all associated data</small></span><button class="button button-danger" id="delete-account"><i data-lucide="user-round-x"></i>Delete account</button></div>
             </article>
           </div>
         </section>
       </div>
-      <footer class="app-footer"><span>Made for mindful money moments.</span><span><i data-lucide="lock-keyhole"></i> Your data is private to your account</span></footer>
+      <footer class="app-footer">
+        <div class="footer-branding">
+          <span>© 2026 mtrx. All rights reserved.</span>
+          <nav class="legal-links" aria-label="Legal and support links">
+            <a href="copyright.html">Copyright</a>
+            <a href="privacy-policy.html">Privacy Policy</a>
+            <a href="terms.html">Terms</a>
+            <a href="disclaimer.html">Disclaimer</a>
+            <a href="safety.html">Safety</a>
+            <a href="customer-support.html">Customer Support</a>
+          </nav>
+          <span class="footer-watermark">Made with love <span aria-hidden="true">❤️</span> by Rashal</span>
+        </div>
+        <span><i data-lucide="lock-keyhole"></i> Your data is private to your account</span>
+      </footer>
     </main>
   </div>
 
